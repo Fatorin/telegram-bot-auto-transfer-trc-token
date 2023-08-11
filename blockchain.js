@@ -2,7 +2,7 @@ const TronWeb = require('tronweb');
 const selfAccount = "YOUR-BLOCKCHIAN-ADDRESS";
 const privateKey = "YOUR-BLOCKCHIAN-PRIVATE-KEY-DONT-LEAK";
 const mainNode = 'https://api.trongrid.io';
-const tronWeb = new TronWeb(mainNode, mainNode, mainNode, privateKey)
+const tronWeb = new TronWeb(mainNode, mainNode, mainNode, privateKey);
 const contractAddress = "YOUR-BLOCKCHIAN-CONTRACT-ADDRESS";
 tronWeb.setHeader({ "TRON-PRO-API-KEY": 'YOUR-TRON-API-KEY' });
 const { getFilePath, getFile } = require('./utility');
@@ -145,6 +145,24 @@ class BlochChainService {
 
         result.ok = true;
         return result;
+    }
+
+    async forecastEngery() {
+        const contractHex = tronWeb.address.toHex(contractAddress);
+        const callerHex = tronWeb.address.toHex(selfAccount);
+        const parameter = [{ type: 'address', value: 'TV3nb5HYFe2xBEmyb3ETe93UGkjAhWyzrs' }, { type: 'uint256', value: 100000 }];
+        try {
+            const response = await tronWeb.transactionBuilder.triggerConstantContract(contractHex, "transfer(address,uint256)", {},
+                parameter, callerHex);
+            const params = await tronWeb.trx.getChainParameters();
+            const needBandwitdh = Math.round(response.transaction.raw_data_hex.length / 2) + 68;
+            const getEnergyFeeValue = params.find(item => item.key === 'getEnergyFee')?.value;
+            const total = (response.energy_used * getEnergyFeeValue) + needBandwitdh * 1000;
+            return tronWeb.fromSun(total);
+        } catch (e) {
+            console.log(e);
+            console.log("無法調用合約，請聯繫系統管理員。");
+        }
     }
 
     checkList() {
