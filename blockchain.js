@@ -14,30 +14,68 @@ class BlochChainService {
         this.datas = [];
         this.contract = null;
         this.loading = true;
-        this.getContract();
+        this.progressing = false;
+        this.#getContract();
     }
 
-    async checkBalance() {
+    async startRequest(command, id, document) {
+        let message = "系統正在執行指令，請等待執行完畢。";
+        if (this.progressing) {
+            await sendMessage(id, message);
+            return;
+        }
+
+        this.progressing = true;
+        switch (command) {
+            case "/checkbalance":
+                message = await this.#checkBalance();
+                break;
+            case "/checklist":
+                message = await this.#checkList();;
+                break;
+            case "/sendtoken":
+                message = await this.#sendToken();
+                break;
+            case "/removelist":
+                message = this.#removeList();
+                break;
+            case "/uploadList":
+                message = await this.#uploadList(document);
+                break;
+            default:
+                message = "不支援的指令。";
+        }
+
+        this.progressing = false;
+        await sendMessage(id, message);
+        return;
+    }
+
+    isStatusError() {
+        return this.loading;
+    }
+
+    async #checkBalance() {
         try {
             let trxBalance = await tronWeb.trx.getBalance(selfAccount);
             let tokenBalance = await this.contract.methods.balanceOf(selfAccount).call();
-            return `讀取成功，您的餘額如下。TRX:${tronWeb.fromSun(trxBalance).toString()}、TOKEN:${tokenBalance.toString()}`;
+            return `讀取成功，您的餘額如下。TRX:${tronWeb.fromSun(trxBalance).toString()}、TOKEN:${tokenBalance / token_decimal}`;
         } catch (e) {
             console.log(e);
             return "讀取餘額異常，請聯繫機器人開發者。";
         }
     }
 
-    async uploadList(document) {
+    async #uploadList(document) {
         if (this.progressing) {
             return "系統清單正在鎖定中，可能正在發送或是仍在新增清單，請收到確認消息後再嘗試。";
         }
 
-        if (!this.isAllowMineType(document.mime_type)) {
+        if (!this.#isAllowMineType(document.mime_type)) {
             return "檔案格式不正確，只支援Excel(XLSX)的類型。";
         }
 
-        if (!this.isAllowSize(document.file_size)) {
+        if (!this.#isAllowSize(document.file_size)) {
             return "檔案大小不正確，只支援50KB以下的檔案。";
         }
 
@@ -51,17 +89,17 @@ class BlochChainService {
             return "無法從Telegram伺服器下載檔案，請洽管理員。";
         }
 
-        const analzyeResult = await this.analzyeXslx(file);
+        const analzyeResult = await this.#analzyeXslx(file);
         if (!analzyeResult.ok) {
             return analzyeResult.message;
         }
 
         this.datas = this.datas.concat(analzyeResult.datas);
-        const checkListResult = this.checkList();
+        const checkListResult = this.#checkList();
         return "讀取資料成功。" + checkListResult;
     }
 
-    async getContract() {
+    async #getContract() {
         this.contract = await tronWeb.contract().at(contractAddress);
         if (this.contract === undefined || this.contract === null) {
             console.log("讀取合約失敗，請檢查合約地址。");
@@ -72,7 +110,7 @@ class BlochChainService {
         this.loading = false;
     }
 
-    async sendToken() {
+    async #sendToken() {
         if (this.datas.length == 0) {
             return "清單裡面沒有任何資料，請使用上傳清單來更新。";
         }
@@ -85,7 +123,7 @@ class BlochChainService {
                 let address = datas[index].address;
                 let amonut = new BigNumber(datas[index].amount);
                 let transferCount = new BigNumber(1000000000000000000n).multipliedBy(amonut).toFixed();
-                await this.delay(200);
+                await this.#delay(200);
                 const resp = await this.contract.methods.transfer(address, transferCount).send();
                 if (resp === true) {
                     console.log("轉給「" + data[0] + "」的" + data[1] + "個代幣傳輸成功");
@@ -111,7 +149,7 @@ class BlochChainService {
         return `${this.datas[0].address} 發送失敗，可能是TRX或是TOKEN不足，請查詢後再發送。在此之前的項目均已發送完畢。`;
     }
 
-    async analzyeXslx(file) {
+    async #analzyeXslx(file) {
         let result = {
             ok: false,
             message: '',
@@ -121,7 +159,7 @@ class BlochChainService {
         let rows = await readXlsxFile(file);
 
         for (let index = 0; index < rows.length; index++) {
-            const info = this.tryGetTransferInfo(rows[index]);
+            const info = this.#tryGetTransferInfo(rows[index]);
 
             if (info.address == null && info.amount == null) {
                 result.message = `表格檔案第[${index + 1}]有問題。`;
@@ -147,7 +185,7 @@ class BlochChainService {
         return result;
     }
 
-    async forecastEngery() {
+    async #forecastEngery() {
         const contractHex = tronWeb.address.toHex(contractAddress);
         const callerHex = tronWeb.address.toHex(selfAccount);
         const parameter = [{ type: 'address', value: 'TV3nb5HYFe2xBEmyb3ETe93UGkjAhWyzrs' }, { type: 'uint256', value: 100000 }];
@@ -162,15 +200,22 @@ class BlochChainService {
         } catch (e) {
             console.log(e);
             console.log("無法調用合約，請聯繫系統管理員。");
+            return -1;
         }
     }
 
-    checkList() {
+    async #checkList() {
+        if (this.datas.length == 0) {
+            return "清單裡面沒有任何資料，請使用上傳清單來更新。";
+        }
+
         let totalAmount = this.datas.reduce((total, data) => total + data.amount, 0);
-        return `清單內共有資料 ${this.datas.length} 筆、共計需要 ${totalAmount} 枚代幣。`;
+        let singleTronCost = await this.#forecastEngery();
+        console.log(`清單內共有資料 ${this.datas.length} 筆、共計需要 ${totalAmount} 枚代幣。預計需要消耗 ${this.datas.length * singleTronCost} TRX。`);
+        return `清單內共有資料 ${this.datas.length} 筆、共計需要 ${totalAmount} 枚代幣。預計需要消耗 ${this.datas.length * singleTronCost} TRX。`;
     }
 
-    tryGetTransferInfo(row) {
+    #tryGetTransferInfo(row) {
         let result = {
             address: null,
             amount: null,
@@ -203,29 +248,19 @@ class BlochChainService {
         return result;
     }
 
-    tryGetAmount(data) {
-
-        return null;
-    }
-
-    removeList() {
+    #removeList() {
         this.datas = [];
         return "清單內容已清除。";
     }
-
-    isStatusError() {
-        return this.loading;
-    }
-
-    isAllowMineType(mineType) {
+    #isAllowMineType(mineType) {
         return mineType == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     }
 
-    isAllowSize(fileSize) {
+    #isAllowSize(fileSize) {
         return fileSize <= 50 * 1000;
     }
 
-    delay(n) {
+    #delay(n) {
         return new Promise(function (resolve) {
             setTimeout(resolve, n);
         });

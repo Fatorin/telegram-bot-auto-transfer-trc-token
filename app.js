@@ -13,7 +13,13 @@ const blockChainService = new BlockChainService();
 const options = {
     key: fs.readFileSync(__dirname + '/server.key', 'utf8'),
     cert: fs.readFileSync(__dirname + '/server.crt', 'utf8'),
+    admin: [1234567890],
 };
+
+if (options.admin.length < 1) {
+    console.log("Failed to read admin list.");
+    return;
+}
 
 async function main() {
     let setWebhookResult = await setWebHook("YOUR-BACKEND-URL", secret);
@@ -42,62 +48,30 @@ async function main() {
             return res.sendStatus(200);
         }
 
+        let message = "已收到指令，正在處理中。";
+        const id = req.body.message.chat.id;
+
         if (req.blockChainService.isStatusError()) {
-            console.log("區塊鏈交互發生異常，請洽管理員。");
+            message = "區塊鏈交互發生異常，請洽管理員。";
+            await sendMessage(id, message);
             return res.sendStatus(200);
         }
 
-        const id = req.body.message.chat.id;
-        if (id != 'YOU-ALLOW-TELEGRAM-ID') {
+        if (!options.admin.includes(id)) {
             console.log("非核准帳號，請洽管理員。");
+            message = `您的ID是[${id}]，請通知管理員獲得權限。`;
+            await sendMessage(id, message);
             return res.sendStatus(200);
         }
 
         if (req.body.message.document != undefined) {
-            if (!progressing.ok) {
-                await sendMessage(id, progressing.message);
-                return res.sendStatus(200);
-            }
-            progressing.ok = false;
-            const message = await req.blockChainService.uploadList(req.body.message.document);
-            progressing.ok = true;
+            req.blockChainService.startRequest("/uploadList", id, req.body.message.document);
             await sendMessage(id, message);
             return res.sendStatus(200);
         }
 
         const command = req.body.message.text;
-        const isProgressCommand = command == "/checklist" || command == "/sendtoken" || command == "/removelist";
-        if (isProgressCommand && !progressing.ok) {
-            await sendMessage(id, progressing.message);
-            return res.sendStatus(200);
-        }
-
-        let message = "";
-        switch (command) {
-            case "/checkbalance":
-                message = await req.blockChainService.checkBalance();
-                break;
-            case "/checklist":
-                progressing.ok = false;
-                message = req.blockChainService.checkList();
-                progressing.ok = true;
-                break;
-            case "/sendtoken":
-                progressing.ok = false;
-                message = await req.blockChainService.sendToken();
-                progressing.ok = true;
-                break;
-            case "/removelist":
-                progressing.ok = false;
-                message = req.blockChainService.removeList();
-                progressing.ok = true;
-                break;
-            case "/checkmyid":
-                message = `您的ID是[${id}]，請通知管理員獲得權限。`;
-                break;
-            default:
-                message = "不支援的指令。";
-        }
+        req.blockChainService.startRequest(command, id);
         await sendMessage(id, message);
         return res.sendStatus(200);
     });
