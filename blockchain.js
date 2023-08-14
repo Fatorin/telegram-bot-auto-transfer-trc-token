@@ -67,10 +67,6 @@ class BlochChainService {
     }
 
     async #uploadList(document) {
-        if (this.progressing) {
-            return "系統清單正在鎖定中，可能正在發送或是仍在新增清單，請收到確認消息後再嘗試。";
-        }
-
         if (!this.#isAllowMineType(document.mime_type)) {
             return "檔案格式不正確，只支援Excel(XLSX)的類型。";
         }
