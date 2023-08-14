@@ -1,4 +1,5 @@
 const TronWeb = require('tronweb');
+const BigNumber = require('bignumber.js');
 const selfAccount = "YOUR-BLOCKCHIAN-ADDRESS";
 const privateKey = "YOUR-BLOCKCHIAN-PRIVATE-KEY-DONT-LEAK";
 const mainNode = 'https://api.trongrid.io';
@@ -91,7 +92,7 @@ class BlochChainService {
         }
 
         this.#mergeList(analzyeResult.datas);
-        const checkListResult = this.#checkList();
+        const checkListResult = await this.#checkList();
         return "讀取資料成功。" + checkListResult;
     }
 
@@ -114,17 +115,17 @@ class BlochChainService {
         let lastIndex = 0;
         let hasError = false;
         try {
-            for (let index = 0; index < datas.length; index++) {
+            for (let index = 0; index < this.datas.length; index++) {
                 lastIndex = index;
-                let address = datas[index].address;
-                let amonut = new BigNumber(datas[index].amount);
+                let address = this.datas[index].address;
+                let amonut = new BigNumber(this.datas[index].amount);
                 let transferCount = new BigNumber(1000000000000000000n).multipliedBy(amonut).toFixed();
                 await this.#delay(200);
                 const resp = await this.contract.methods.transfer(address, transferCount).send();
                 if (resp === true) {
-                    console.log("轉給「" + data[0] + "」的" + data[1] + "個代幣傳輸成功");
+                    console.log("轉給「" + address + "」的" + transferCount + "個代幣傳輸成功");
                 } else {
-                    console.log("轉給「" + data[0] + "」的" + data[1] + "個代幣已廣播");
+                    console.log("轉給「" + address + "」的" + transferCount + "個代幣已廣播");
                 }
             }
         } catch (error) {
@@ -133,7 +134,7 @@ class BlochChainService {
         }
 
         if (!hasError) {
-            let totalAmount = this.datas.reduce((total, amount) => total + amount, 0);
+            let totalAmount = this.datas.reduce((total, data) => total + data.amount, 0);
             this.datas = [];
             return `資料 ${this.datas.length} 筆、共計 ${totalAmount} 枚代幣已發送成功，將自動清除清單。`;
         }
@@ -152,30 +153,36 @@ class BlochChainService {
             datas: {},
         }
 
-        let rows = await readXlsxFile(file);
+        try {
+            let rows = await readXlsxFile(file);
 
-        for (let index = 0; index < rows.length; index++) {
-            const info = this.#tryGetTransferInfo(rows[index]);
+            for (let index = 0; index < rows.length; index++) {
+                const info = this.#tryGetTransferInfo(rows[index]);
 
-            if (info.address == null && info.amount == null) {
-                result.message = `表格檔案第[${index + 1}]有問題。`;
-                return result;
+                if (info.address == null && info.amount == null) {
+                    result.message = `表格檔案第[${index + 1}]有問題。`;
+                    return result;
+                }
+
+                if (info.address == null && info.amount != null) {
+                    continue;
+                }
+
+                if (!tronWeb.isAddress(info.address)) {
+                    result.message = `表格檔案第[${index + 1}]的地址${info.address}有問題。`;
+                    return result;
+                }
+
+                if (result.datas.hasOwnProperty(info.address)) {
+                    result.datas[info.address] += info.amount;
+                }
+
+                result.datas[info.address] = info.amount;
             }
-
-            if (info.address == null && info.amount != null) {
-                continue;
-            }
-
-            if (!tronWeb.isAddress(info.address)) {
-                result.message = `表格檔案第[${index + 1}]的地址${info.address}有問題。`;
-                return result;
-            }
-
-            if (result.datas.hasOwnProperty(info.address)) {
-                result.datas.push[info.address] += info.amount;
-            }
-
-            result.datas.push[info.address] = info.amount;
+        } catch (e) {
+            console.log("loading xlsx failed. reason:" + e);
+            result.message = "讀取檔案失敗，請確認檔案是否為Excel(xlsx)檔案。";
+            return result;
         }
 
         result.ok = true;
@@ -250,9 +257,9 @@ class BlochChainService {
             if (dict.hasOwnProperty(v.address)) {
                 dict[v.address] += v.amount;
             }
-            
+
             dict[v.address] = v.amount;
-        })
+        });
 
         const list = Object.entries(dict)
             .map(([key, value]) => ({
