@@ -90,7 +90,7 @@ class BlochChainService {
             return analzyeResult.message;
         }
 
-        this.datas = this.datas.concat(analzyeResult.datas);
+        this.#mergeList(analzyeResult.datas);
         const checkListResult = this.#checkList();
         return "讀取資料成功。" + checkListResult;
     }
@@ -149,7 +149,7 @@ class BlochChainService {
         let result = {
             ok: false,
             message: '',
-            datas: [],
+            datas: {},
         }
 
         let rows = await readXlsxFile(file);
@@ -171,10 +171,11 @@ class BlochChainService {
                 return result;
             }
 
-            result.datas.push({
-                address: info.address,
-                amount: info.amount
-            });
+            if (result.datas.hasOwnProperty(info.address)) {
+                result.datas.push[info.address] += info.amount;
+            }
+
+            result.datas.push[info.address] = info.amount;
         }
 
         result.ok = true;
@@ -242,6 +243,24 @@ class BlochChainService {
         });
 
         return result;
+    }
+
+    #mergeList(dict) {
+        this.datas.forEach(v => {
+            if (dict.hasOwnProperty(v.address)) {
+                dict[v.address] += v.amount;
+            }
+            
+            dict[v.address] = v.amount;
+        })
+
+        const list = Object.entries(dict)
+            .map(([key, value]) => ({
+                address: key,
+                amount: value
+            }));
+
+        this.datas = list;
     }
 
     #removeList() {
