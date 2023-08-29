@@ -134,9 +134,10 @@ class BlochChainService {
         }
 
         if (!hasError) {
-            let totalAmount = this.datas.reduce((total, data) => total + data.amount, 0);
+            let len = this.datas.length;
+            let totalAmount = this.#totalToken();
             this.datas = [];
-            return `資料 ${this.datas.length} 筆、共計 ${totalAmount} 枚代幣已發送成功，將自動清除清單。`;
+            return `資料 ${len} 筆、共計 ${totalAmount} 枚代幣已發送成功，將自動清除清單。`;
         }
 
         if (lastIndex > 0) {
@@ -213,10 +214,7 @@ class BlochChainService {
             return "清單裡面沒有任何資料，請使用上傳清單來更新。";
         }
 
-        let totalAmount = new BigNumber(0);
-        this.datas.forEach(element => {
-            totalAmount = BigNumber.sum(totalAmount, element.amount);
-        });
+        let totalAmount = this.#totalToken();
         let singleTronCost = await this.#forecastEngery();
         console.log(`清單內共有資料 ${this.datas.length} 筆、共計需要 ${totalAmount} 枚代幣。預計需要消耗 ${this.datas.length * singleTronCost} TRX。`);
         return `清單內共有資料 ${this.datas.length} 筆、共計需要 ${totalAmount} 枚代幣。預計需要消耗 ${this.datas.length * singleTronCost} TRX。`;
@@ -283,6 +281,14 @@ class BlochChainService {
 
     #isAllowSize(fileSize) {
         return fileSize <= 50 * 1000;
+    }
+
+    #totalToken(){
+        let totalAmount = new BigNumber(0);
+        this.datas.forEach(element => {
+            totalAmount = BigNumber.sum(totalAmount, element.amount);
+        });
+        return totalAmount;
     }
 
     #delay(n) {
