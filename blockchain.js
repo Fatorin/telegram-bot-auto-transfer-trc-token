@@ -118,7 +118,7 @@ class BlochChainService {
             for (let index = 0; index < this.datas.length; index++) {
                 lastIndex = index;
                 let address = this.datas[index].address;
-                let amonut = new BigNumber(this.datas[index].amount);
+                let amonut = this.datas[index].amount;
                 let transferCount = new BigNumber(1000000000000000000n).multipliedBy(amonut).toFixed();
                 await this.#delay(200);
                 const resp = await this.contract.methods.transfer(address, transferCount).send();
@@ -175,11 +175,11 @@ class BlochChainService {
                 }
 
                 if (result.datas.hasOwnProperty(info.address)) {
-                    result.datas[info.address] += info.amount;
+                    result.datas[info.address] = BigNumber.sum(result.datas[info.address], info.amount);
                     continue;
                 }
 
-                result.datas[info.address] = info.amount;
+                result.datas[info.address] = new BigNumber(info.amount);
             }
         } catch (e) {
             console.log("loading xlsx failed. reason:" + e);
@@ -233,7 +233,7 @@ class BlochChainService {
             }
 
             if (!isNaN(cell)) {
-                result.amount = Math.abs(cell);
+                result.amount = new BigNumber(Math.abs(cell));
                 return;
             }
 
@@ -257,10 +257,10 @@ class BlochChainService {
     #mergeList(dict) {
         this.datas.forEach(v => {
             if (dict.hasOwnProperty(v.address)) {
-                dict[v.address] += v.amount;
+                dict[v.address] = BigNumber.sum(dict[v.address], v.amount);
+            } else {
+                dict[v.address] = v.amount;
             }
-
-            dict[v.address] = v.amount;
         });
 
         const list = Object.entries(dict)
