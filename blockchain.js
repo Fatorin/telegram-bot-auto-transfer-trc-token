@@ -213,7 +213,10 @@ class BlochChainService {
             return "清單裡面沒有任何資料，請使用上傳清單來更新。";
         }
 
-        let totalAmount = this.datas.reduce((total, data) => total + data.amount, 0);
+        let totalAmount = new BigNumber(0);
+        this.datas.forEach(element => {
+            totalAmount = BigNumber.sum(totalAmount, element.amount);
+        });
         let singleTronCost = await this.#forecastEngery();
         console.log(`清單內共有資料 ${this.datas.length} 筆、共計需要 ${totalAmount} 枚代幣。預計需要消耗 ${this.datas.length * singleTronCost} TRX。`);
         return `清單內共有資料 ${this.datas.length} 筆、共計需要 ${totalAmount} 枚代幣。預計需要消耗 ${this.datas.length * singleTronCost} TRX。`;
