@@ -176,6 +176,7 @@ class BlochChainService {
 
                 if (result.datas.hasOwnProperty(info.address)) {
                     result.datas[info.address] += info.amount;
+                    continue;
                 }
 
                 result.datas[info.address] = info.amount;
@@ -283,7 +284,7 @@ class BlochChainService {
         return fileSize <= 50 * 1000;
     }
 
-    #totalToken(){
+    #totalToken() {
         let totalAmount = new BigNumber(0);
         this.datas.forEach(element => {
             totalAmount = BigNumber.sum(totalAmount, element.amount);
